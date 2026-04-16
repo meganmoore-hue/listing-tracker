@@ -452,7 +452,12 @@ export default function App() {
                 const d = new Date(t.due_date + "T00:00:00");
                 return d >= today && d <= weekEnd;
               }).sort((a, b) => a.due_date.localeCompare(b.due_date));
-              if (!due.length) return null;
+              const dueGeneral = generalTasks.filter(t => {
+                if (t.done) return false;
+                const d = new Date(t.due_date + "T00:00:00");
+                return d >= today && d <= weekEnd;
+              }).sort((a, b) => a.due_date.localeCompare(b.due_date));
+              if (!due.length && !dueGeneral.length) return null;
               return (
                 <div style={{ background: "#2C5F2E", borderRadius: 14, padding: "16px 20px", marginBottom: 20 }}>
                   <div style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.7)", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>Due this week</div>
@@ -470,6 +475,16 @@ export default function App() {
                         </div>
                       );
                     })}
+                    {dueGeneral.map(t => (
+                      <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 999, background: "rgba(201,168,76,0.3)", color: "#C9A84C", fontWeight: 500 }}>{fmtDate(t.due_date)}</span>
+                          <span style={{ fontSize: 13, color: "#fff" }}>{t.name}</span>
+                          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)" }}>General</span>
+                        </div>
+                        <button onClick={() => toggleGeneralTask(t.id, t.done)} style={{ fontSize: 12, padding: "4px 14px", borderRadius: 6, border: "1.5px solid rgba(201,168,76,0.6)", background: "transparent", color: "#C9A84C", cursor: "pointer", fontWeight: 500 }}>Mark done</button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
