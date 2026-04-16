@@ -141,11 +141,17 @@ function CalendarGrid({ year, month, tasksByDay, onTaskClick }) {
   );
 }
 
-function PhaseSection({ ph, pi, phaseTasks, l, updateTaskStatus, removeCustomTask, addCustomTask }) {
+function PhaseSection({ ph, pi, phaseTasks, l, updateTaskStatus, removeCustomTask, addCustomTask, updateTask }) {
   const [showDone, setShowDone] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [editVal, setEditVal] = useState({ name: "", due_date: "" });
   const pc = PHASE_COLORS[pi];
   const pending = phaseTasks.filter(t => t.status !== "done" && t.status !== "skipped");
   const done = phaseTasks.filter(t => t.status === "done");
+
+  const startEdit = (t) => { setEditId(t.id); setEditVal({ name: t.name, due_date: t.due_date }); };
+  const saveEdit = () => { updateTask(editId, editVal); setEditId(null); };
+
   return (
     <div style={{ marginBottom: 12, border: `1px solid ${pc.border}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
       <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 16px", background: pc.bg }}>
@@ -153,17 +159,29 @@ function PhaseSection({ ph, pi, phaseTasks, l, updateTaskStatus, removeCustomTas
         <span style={{ fontSize: 12, color: pc.text, opacity: 0.8 }}>{done.length}/{phaseTasks.length} done</span>
       </div>
       {pending.map(t => (
-        <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid #f0f0f0", background: "transparent", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
-            <span style={{ fontSize: 13, color: "#111" }}>{t.name}</span>
-            <span style={{ fontSize: 11, color: "#999" }}>{fmtDate(t.due_date)}</span>
-            {t.custom && <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 999, background: "#f0f0f0", color: "#666" }}>custom</span>}
-          </div>
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-            {!l.sold && <button onClick={() => updateTaskStatus(t.id, "skipped")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #ddd", background: "transparent", color: "#666", cursor: "pointer" }}>Skip</button>}
-            {!l.sold && <button onClick={() => updateTaskStatus(t.id, "done")} style={{ fontSize: 12, padding: "5px 14px", borderRadius: 6, border: "1.5px solid #ddd", background: "transparent", color: "#111", cursor: "pointer" }}>Mark done</button>}
-            {t.custom && !l.sold && <button onClick={() => removeCustomTask(t.id)} style={{ background: "none", border: "none", color: "#999", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>×</button>}
-          </div>
+        <div key={t.id}>
+          {editId === t.id ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: "1px solid #f0f0f0", background: "#fafafa" }}>
+              <input value={editVal.name} onChange={e => setEditVal(p => ({ ...p, name: e.target.value }))} style={{ flex: 1, fontSize: 13 }} />
+              <input type="date" value={editVal.due_date} onChange={e => setEditVal(p => ({ ...p, due_date: e.target.value }))} style={{ fontSize: 13, width: 140 }} />
+              <button onClick={saveEdit} style={{ fontSize: 12, padding: "4px 12px", borderRadius: 6, border: "1px solid #2C5F2E", background: "#2C5F2E", color: "#fff", cursor: "pointer" }}>Save</button>
+              <button onClick={() => setEditId(null)} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid #ddd", background: "transparent", cursor: "pointer", color: "#666" }}>×</button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid #f0f0f0", background: "transparent", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+                <span style={{ fontSize: 13, color: "#111" }}>{t.name}</span>
+                <span style={{ fontSize: 11, color: "#999" }}>{fmtDate(t.due_date)}</span>
+                {t.custom && <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 999, background: "#f0f0f0", color: "#666" }}>custom</span>}
+              </div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                {!l.sold && <button onClick={() => startEdit(t)} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #ddd", background: "transparent", color: "#666", cursor: "pointer" }}>✎</button>}
+                {!l.sold && <button onClick={() => updateTaskStatus(t.id, "skipped")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #ddd", background: "transparent", color: "#666", cursor: "pointer" }}>Skip</button>}
+                {!l.sold && <button onClick={() => updateTaskStatus(t.id, "done")} style={{ fontSize: 12, padding: "5px 14px", borderRadius: 6, border: "1.5px solid #ddd", background: "transparent", color: "#111", cursor: "pointer" }}>Mark done</button>}
+                {t.custom && !l.sold && <button onClick={() => removeCustomTask(t.id)} style={{ background: "none", border: "none", color: "#999", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>×</button>}
+              </div>
+            </div>
+          )}
         </div>
       ))}
       {pending.length === 0 && done.length > 0 && (
@@ -264,6 +282,13 @@ export default function App() {
     try {
       await db("tasks", { method: "POST", body: JSON.stringify(task) });
       setTasks(p => [...p, task]);
+    } catch (e) { console.error(e); }
+  }
+
+  async function updateTask(taskId, fields) {
+    try {
+      await db(`tasks?id=eq.${taskId}`, { method: "PATCH", body: JSON.stringify(fields), prefer: "return=minimal" });
+      setTasks(p => p.map(t => t.id === taskId ? { ...t, ...fields } : t));
     } catch (e) { console.error(e); }
   }
 
@@ -429,7 +454,7 @@ export default function App() {
               {propertyView === "list" && PHASES.map((ph, pi) => {
                 const phaseTasks = lTasks.filter(t => t.phase === pi);
                 if (!phaseTasks.length) return null;
-                return <PhaseSection key={pi} ph={ph} pi={pi} phaseTasks={phaseTasks} l={l} updateTaskStatus={updateTaskStatus} removeCustomTask={removeCustomTask} addCustomTask={addCustomTask} />;
+                return <PhaseSection key={pi} ph={ph} pi={pi} phaseTasks={phaseTasks} l={l} updateTaskStatus={updateTaskStatus} removeCustomTask={removeCustomTask} addCustomTask={addCustomTask} updateTask={updateTask} />;
               })}
 
               {propertyView === "calendar" && (
