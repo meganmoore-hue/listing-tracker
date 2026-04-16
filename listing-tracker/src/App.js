@@ -148,10 +148,8 @@ function PhaseSection({ ph, pi, phaseTasks, l, updateTaskStatus, removeCustomTas
   const pc = PHASE_COLORS[pi];
   const pending = phaseTasks.filter(t => t.status !== "done" && t.status !== "skipped");
   const done = phaseTasks.filter(t => t.status === "done");
-
-  const startEdit = (t) => { setEditId(t.id); setEditVal({ name: t.name, due_date: t.due_date }); };
+  const startEdit = t => { setEditId(t.id); setEditVal({ name: t.name, due_date: t.due_date }); };
   const saveEdit = () => { updateTask(editId, editVal); setEditId(null); };
-
   return (
     <div style={{ marginBottom: 12, border: `1px solid ${pc.border}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
       <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 16px", background: pc.bg }}>
@@ -161,8 +159,8 @@ function PhaseSection({ ph, pi, phaseTasks, l, updateTaskStatus, removeCustomTas
       {pending.map(t => (
         <div key={t.id}>
           {editId === t.id ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: "1px solid #f0f0f0", background: "#fafafa" }}>
-              <input value={editVal.name} onChange={e => setEditVal(p => ({ ...p, name: e.target.value }))} style={{ flex: 1, fontSize: 13 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: "1px solid #f0f0f0", background: "#fafafa", flexWrap: "wrap" }}>
+              <input value={editVal.name} onChange={e => setEditVal(p => ({ ...p, name: e.target.value }))} style={{ flex: 1, fontSize: 13, minWidth: 120 }} />
               <input type="date" value={editVal.due_date} onChange={e => setEditVal(p => ({ ...p, due_date: e.target.value }))} style={{ fontSize: 13, width: 140 }} />
               <button onClick={saveEdit} style={{ fontSize: 12, padding: "4px 12px", borderRadius: 6, border: "1px solid #2C5F2E", background: "#2C5F2E", color: "#fff", cursor: "pointer" }}>Save</button>
               <button onClick={() => setEditId(null)} style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid #ddd", background: "transparent", cursor: "pointer", color: "#666" }}>×</button>
@@ -208,6 +206,139 @@ function PhaseSection({ ph, pi, phaseTasks, l, updateTaskStatus, removeCustomTas
   );
 }
 
+function ListingDetail({ l, lTasks, listings, setListings, updateTaskStatus, updateTask, addCustomTask, removeCustomTask, markSold, deleteListing, setActiveId }) {
+  const [editListing, setEditListing] = useState(false);
+  const [editForm, setEditForm] = useState({ address: l.address, price: l.price, list_date: l.list_date, link: l.link || "" });
+  const [propertyView, setPropertyView] = useState("list");
+  const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
+
+  const days = daysOn(l.list_date);
+  const curPhase = Math.min(5, Math.floor(days / 30));
+  const done = lTasks.filter(t => t.status === "done").length;
+  const total = lTasks.length;
+  const p = total ? Math.round((done / total) * 100) : 0;
+
+  const tasksByDay = {};
+  lTasks.forEach(t => {
+    if (!t.due_date) return;
+    const d = new Date(t.due_date + "T00:00:00");
+    if (d.getFullYear() === calMonth.year && d.getMonth() === calMonth.month) {
+      const day = d.getDate();
+      if (!tasksByDay[day]) tasksByDay[day] = [];
+      tasksByDay[day].push({ ...t });
+    }
+  });
+
+  const saveListingEdit = async () => {
+    const newPrice = parsePrice(String(editForm.price));
+    const luxury = newPrice >= 1000000;
+    const updates = { address: editForm.address.trim(), price: newPrice, list_date: editForm.list_date, link: editForm.link.trim(), luxury };
+    try {
+      await db(`listings?id=eq.${l.id}`, { method: "PATCH", body: JSON.stringify(updates), prefer: "return=minimal" });
+      setListings(p => p.map(x => x.id === l.id ? { ...x, ...updates } : x));
+      setEditListing(false);
+    } catch(e) { console.error(e); }
+  };
+
+  return (
+    <div>
+      <button onClick={() => setActiveId(null)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 13, marginBottom: 20, padding: 0 }}>← All listings</button>
+
+      <div style={{ background: "#fff", border: "1px solid #eee", borderRadius: 16, padding: "20px 24px", marginBottom: 20 }}>
+        {editListing ? (
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 14, color: "#111" }}>Edit listing</div>
+            {[["Address","address","e.g. 1520 Quartz Crescent"],["Price (CAD)","price","e.g. 1,250,000"],["MLS link","link","https://..."]].map(([label, key, ph]) => (
+              <div key={key} style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 4 }}>{label}</label>
+                <input value={editForm[key]} onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))} placeholder={ph} style={{ width: "100%", boxSizing: "border-box" }} />
+              </div>
+            ))}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 4 }}>List date</label>
+              <input type="date" value={editForm.list_date} onChange={e => setEditForm(p => ({ ...p, list_date: e.target.value }))} style={{ width: "100%", boxSizing: "border-box" }} />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={saveListingEdit} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#2C5F2E", color: "#fff", fontWeight: 500, fontSize: 13, cursor: "pointer" }}>Save</button>
+              <button onClick={() => setEditListing(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #ddd", background: "transparent", fontSize: 13, cursor: "pointer", color: "#666" }}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <h2 style={{ fontSize: 20, fontWeight: 500, margin: 0, color: "#111" }}>{l.address}</h2>
+                  <span style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: l.luxury ? "#EEEDFE" : "#EBF3EB", color: l.luxury ? "#534AB7" : "#2C5F2E", fontWeight: 500 }}>{l.luxury ? "Luxury" : "Regular"}</span>
+                  {l.sold && <span style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: "#FCE8E8", color: "#A32D2D", fontWeight: 500 }}>Sold</span>}
+                </div>
+                <div style={{ fontSize: 13, color: "#666", marginTop: 4 }}>
+                  {fmtPrice(l.price)} · Day {days} on market · {PHASES[curPhase].split("—")[1].trim()}
+                  {l.link && <> · <a href={l.link} style={{ color: "#2C5F2E" }}>MLS link ↗</a></>}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {!l.sold && <button onClick={() => setEditListing(true)} style={{ padding: "7px 16px", borderRadius: 8, border: "1px solid #ddd", background: "transparent", color: "#666", cursor: "pointer", fontSize: 12 }}>✎ Edit</button>}
+                {!l.sold && <button onClick={() => { if (window.confirm(`Mark ${l.address} as sold?`)) markSold(l.id); }} style={{ padding: "7px 16px", borderRadius: 8, border: "1.5px solid #A32D2D", background: "#FFF5F5", color: "#A32D2D", cursor: "pointer", fontSize: 12, fontWeight: 500 }}>Mark sold</button>}
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
+              {[["List price", fmtPrice(l.price)], ["Days on market", `Day ${days}`], ["Current phase", `Month ${curPhase + 1} of 6`], ["Progress", `${done} / ${total}`]].map(([label, val]) => (
+                <div key={label} style={{ background: "#f5f5f5", borderRadius: 8, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 11, color: "#666", marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: "#111" }}>{val}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1, height: 5, borderRadius: 999, background: "#eee", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${p}%`, background: "#2C5F2E", borderRadius: 999 }} />
+              </div>
+              <span style={{ fontSize: 12, color: "#666" }}>{p}%</span>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", gap: 4, background: "#eee", borderRadius: 8, padding: 4 }}>
+          {["list","calendar"].map(v => (
+            <button key={v} onClick={() => setPropertyView(v)} style={{ padding: "6px 16px", borderRadius: 6, border: "none", background: propertyView === v ? "#fff" : "transparent", color: propertyView === v ? "#111" : "#666", cursor: "pointer", fontSize: 13, fontWeight: propertyView === v ? 500 : 400 }}>
+              {v === "list" ? "List" : "Calendar"}
+            </button>
+          ))}
+        </div>
+        {propertyView === "calendar" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button onClick={() => setCalMonth(p => { const d = new Date(p.year, p.month - 1); return { year: d.getFullYear(), month: d.getMonth() }; })} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 13 }}>←</button>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>{MONTH_NAMES[calMonth.month]} {calMonth.year}</span>
+            <button onClick={() => setCalMonth(p => { const d = new Date(p.year, p.month + 1); return { year: d.getFullYear(), month: d.getMonth() }; })} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 13 }}>→</button>
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {PHASES.map((_, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#666" }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: PHASE_COLORS[i].dot }} />M{i+1}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {propertyView === "list" && PHASES.map((ph, pi) => {
+        const phaseTasks = lTasks.filter(t => t.phase === pi);
+        if (!phaseTasks.length) return null;
+        return <PhaseSection key={pi} ph={ph} pi={pi} phaseTasks={phaseTasks} l={l} updateTaskStatus={updateTaskStatus} removeCustomTask={removeCustomTask} addCustomTask={addCustomTask} updateTask={updateTask} />;
+      })}
+
+      {propertyView === "calendar" && (
+        <CalendarGrid year={calMonth.year} month={calMonth.month} tasksByDay={tasksByDay}
+          onTaskClick={t => !l.sold && updateTaskStatus(t.id, t.status === "done" ? "pending" : "done")} />
+      )}
+      <button onClick={() => { if (window.confirm("Delete this listing?")) deleteListing(l.id); }} style={{ marginTop: 16, background: "none", border: "none", color: "#999", cursor: "pointer", fontSize: 12, padding: 0 }}>Delete listing</button>
+    </div>
+  );
+}
+
 export default function App() {
   const [listings, setListings] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -216,12 +347,10 @@ export default function App() {
   const [error, setError] = useState(null);
   const [tab, setTab] = useState("listings");
   const [activeId, setActiveId] = useState(null);
-  const [propertyView, setPropertyView] = useState("list");
   const [listingTab, setListingTab] = useState("active");
   const [showAddModal, setShowAddModal] = useState(false);
   const [form, setForm] = useState({ address: "", link: "", listDate: "", price: "" });
   const [formErr, setFormErr] = useState("");
-  const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
   const [nltCalMonth, setNltCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
   const [nltForm, setNltForm] = useState({ name: "", dueDate: "", notes: "" });
   const [nltView, setNltView] = useState("list");
@@ -238,10 +367,7 @@ export default function App() {
         setTasks(ts || []);
         setGeneralTasks(gs || []);
         setLoaded(true);
-      } catch (e) {
-        setError(e.message);
-        setLoaded(true);
-      }
+      } catch (e) { setError(e.message); setLoaded(true); }
     }
     load();
   }, []);
@@ -265,13 +391,20 @@ export default function App() {
       setForm({ address: "", link: "", listDate: "", price: "" });
       setFormErr("");
       setShowAddModal(false);
-    } catch (e) { setFormErr("Error saving: " + e.message); }
+    } catch (e) { setFormErr("Error: " + e.message); }
   }
 
   async function updateTaskStatus(taskId, status) {
     try {
       await db(`tasks?id=eq.${taskId}`, { method: "PATCH", body: JSON.stringify({ status }), prefer: "return=minimal" });
       setTasks(p => p.map(t => t.id === taskId ? { ...t, status } : t));
+    } catch (e) { console.error(e); }
+  }
+
+  async function updateTask(taskId, fields) {
+    try {
+      await db(`tasks?id=eq.${taskId}`, { method: "PATCH", body: JSON.stringify(fields), prefer: "return=minimal" });
+      setTasks(p => p.map(t => t.id === taskId ? { ...t, ...fields } : t));
     } catch (e) { console.error(e); }
   }
 
@@ -282,13 +415,6 @@ export default function App() {
     try {
       await db("tasks", { method: "POST", body: JSON.stringify(task) });
       setTasks(p => [...p, task]);
-    } catch (e) { console.error(e); }
-  }
-
-  async function updateTask(taskId, fields) {
-    try {
-      await db(`tasks?id=eq.${taskId}`, { method: "PATCH", body: JSON.stringify(fields), prefer: "return=minimal" });
-      setTasks(p => p.map(t => t.id === taskId ? { ...t, ...fields } : t));
     } catch (e) { console.error(e); }
   }
 
@@ -303,9 +429,7 @@ export default function App() {
     try {
       await db(`listings?id=eq.${id}`, { method: "PATCH", body: JSON.stringify({ sold: true }), prefer: "return=minimal" });
       const pendingIds = tasks.filter(t => t.listing_id === id && t.status === "pending").map(t => t.id);
-      if (pendingIds.length) {
-        await db(`tasks?id=in.(${pendingIds.join(",")})`, { method: "PATCH", body: JSON.stringify({ status: "skipped" }), prefer: "return=minimal" });
-      }
+      if (pendingIds.length) await db(`tasks?id=in.(${pendingIds.join(",")})`, { method: "PATCH", body: JSON.stringify({ status: "skipped" }), prefer: "return=minimal" });
       setListings(p => p.map(l => l.id === id ? { ...l, sold: true } : l));
       setTasks(p => p.map(t => t.listing_id === id && t.status === "pending" ? { ...t, status: "skipped" } : t));
     } catch (e) { console.error(e); }
@@ -375,138 +499,35 @@ export default function App() {
 
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "28px 20px" }}>
 
-        {/* PROPERTY DETAIL */}
-        {tab === "listings" && activeId && activeListing && (() => {
-          const l = activeListing;
-          const lTasks = listingTasks(l.id);
-          const days = daysOn(l.list_date);
-          const curPhase = Math.min(5, Math.floor(days / 30));
-          const done = doneTasks(l.id);
-          const total = totalTasks(l.id);
-          const tasksByDay = {};
-          lTasks.forEach(t => {
-            if (!t.due_date) return;
-            const d = new Date(t.due_date + "T00:00:00");
-            if (d.getFullYear() === calMonth.year && d.getMonth() === calMonth.month) {
-              const day = d.getDate();
-              if (!tasksByDay[day]) tasksByDay[day] = [];
-              tasksByDay[day].push({ ...t, dueDate: t.due_date });
-            }
-          });
-          return (
-            <div>
-              {(() => { const [editListing, setEditListing] = useState(false); const [editForm, setEditForm] = useState({ address: l.address, price: l.price, list_date: l.list_date, link: l.link || "" });
-              const saveListingEdit = async () => { try { await db(`listings?id=eq.${l.id}`, { method: "PATCH", body: JSON.stringify({ address: editForm.address, price: parsePrice(String(editForm.price)), list_date: editForm.list_date, link: editForm.link, luxury: parsePrice(String(editForm.price)) >= 1000000 }), prefer: "return=minimal" }); setListings(p => p.map(x => x.id === l.id ? { ...x, ...editForm, price: parsePrice(String(editForm.price)), luxury: parsePrice(String(editForm.price)) >= 1000000 } : x)); setEditListing(false); } catch(e) { console.error(e); } };
-              return <>
-              <button onClick={() => setActiveId(null)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 13, marginBottom: 20, padding: 0 }}>← All listings</button>
-              <div style={{ background: "#fff", border: "1px solid #eee", borderRadius: 16, padding: "20px 24px", marginBottom: 20 }}>
-                {editListing ? (
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 14, color: "#111" }}>Edit listing</div>
-                    {[["Address","address","e.g. 1520 Quartz Crescent"],["Price (CAD)","price","e.g. 1,250,000"],["MLS link","link","https://..."]].map(([label, key, ph]) => (
-                      <div key={key} style={{ marginBottom: 12 }}>
-                        <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 4 }}>{label}</label>
-                        <input value={editForm[key]} onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))} placeholder={ph} style={{ width: "100%", boxSizing: "border-box" }} />
-                      </div>
-                    ))}
-                    <div style={{ marginBottom: 16 }}>
-                      <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 4 }}>List date</label>
-                      <input type="date" value={editForm.list_date} onChange={e => setEditForm(p => ({ ...p, list_date: e.target.value }))} style={{ width: "100%", boxSizing: "border-box" }} />
-                    </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={saveListingEdit} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#2C5F2E", color: "#fff", fontWeight: 500, fontSize: 13, cursor: "pointer" }}>Save</button>
-                      <button onClick={() => setEditListing(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #ddd", background: "transparent", fontSize: 13, cursor: "pointer", color: "#666" }}>Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                <>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                      <h2 style={{ fontSize: 20, fontWeight: 500, margin: 0, color: "#111" }}>{l.address}</h2>
-                      <span style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: l.luxury ? "#EEEDFE" : "#EBF3EB", color: l.luxury ? "#534AB7" : "#2C5F2E", fontWeight: 500 }}>{l.luxury ? "Luxury" : "Regular"}</span>
-                      {l.sold && <span style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: "#FCE8E8", color: "#A32D2D", fontWeight: 500 }}>Sold</span>}
-                    </div>
-                    <div style={{ fontSize: 13, color: "#666", marginTop: 4 }}>
-                      {fmtPrice(l.price)} · Day {days} on market · {PHASES[curPhase].split("—")[1].trim()}
-                      {l.link && <> · <a href={l.link} style={{ color: "#2C5F2E" }}>MLS link ↗</a></>}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {!l.sold && <button onClick={() => setEditListing(true)} style={{ padding: "7px 16px", borderRadius: 8, border: "1px solid #ddd", background: "transparent", color: "#666", cursor: "pointer", fontSize: 12 }}>✎ Edit</button>}
-                    {!l.sold && <button onClick={() => { if (window.confirm(`Mark ${l.address} as sold?`)) markSold(l.id); }} style={{ padding: "7px 16px", borderRadius: 8, border: "1.5px solid #A32D2D", background: "#FFF5F5", color: "#A32D2D", cursor: "pointer", fontSize: 12, fontWeight: 500 }}>Mark sold</button>}
-                  </div>
-                </div></>)}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
-                  {[["List price", fmtPrice(l.price)], ["Days on market", `Day ${days}`], ["Current phase", `Month ${curPhase + 1} of 6`], ["Progress", `${done} / ${total}`]].map(([label, val]) => (
-                    <div key={label} style={{ background: "#f5f5f5", borderRadius: 8, padding: "10px 12px" }}>
-                      <div style={{ fontSize: 11, color: "#666", marginBottom: 2 }}>{label}</div>
-                      <div style={{ fontSize: 14, fontWeight: 500, color: "#111" }}>{val}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ flex: 1, height: 5, borderRadius: 999, background: "#eee", overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${pct(l.id)}%`, background: "#2C5F2E", borderRadius: 999 }} />
-                  </div>
-                  <span style={{ fontSize: 12, color: "#666" }}>{pct(l.id)}%</span>
-                </div>
-              </div>
+        {tab === "listings" && activeId && activeListing && (
+          <ListingDetail
+            l={activeListing}
+            lTasks={listingTasks(activeListing.id)}
+            listings={listings}
+            setListings={setListings}
+            updateTaskStatus={updateTaskStatus}
+            updateTask={updateTask}
+            addCustomTask={addCustomTask}
+            removeCustomTask={removeCustomTask}
+            markSold={markSold}
+            deleteListing={deleteListing}
+            setActiveId={setActiveId}
+          />
+        )}
 
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-                <div style={{ display: "flex", gap: 4, background: "#eee", borderRadius: 8, padding: 4 }}>
-                  {["list","calendar"].map(v => (
-                    <button key={v} onClick={() => setPropertyView(v)} style={{ padding: "6px 16px", borderRadius: 6, border: "none", background: propertyView === v ? "#fff" : "transparent", color: propertyView === v ? "#111" : "#666", cursor: "pointer", fontSize: 13, fontWeight: propertyView === v ? 500 : 400 }}>
-                      {v === "list" ? "List" : "Calendar"}
-                    </button>
-                  ))}
-                </div>
-                {propertyView === "calendar" && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <button onClick={() => setCalMonth(p => { const d = new Date(p.year, p.month - 1); return { year: d.getFullYear(), month: d.getMonth() }; })} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 13 }}>←</button>
-                    <span style={{ fontSize: 13, fontWeight: 500 }}>{MONTH_NAMES[calMonth.month]} {calMonth.year}</span>
-                    <button onClick={() => setCalMonth(p => { const d = new Date(p.year, p.month + 1); return { year: d.getFullYear(), month: d.getMonth() }; })} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 13 }}>→</button>
-                  </div>
-                )}
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {PHASES.map((_, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#666" }}>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: PHASE_COLORS[i].dot }} />M{i+1}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {propertyView === "list" && PHASES.map((ph, pi) => {
-                const phaseTasks = lTasks.filter(t => t.phase === pi);
-                if (!phaseTasks.length) return null;
-                return <PhaseSection key={pi} ph={ph} pi={pi} phaseTasks={phaseTasks} l={l} updateTaskStatus={updateTaskStatus} removeCustomTask={removeCustomTask} addCustomTask={addCustomTask} updateTask={updateTask} />;
-              })}
-
-              {propertyView === "calendar" && (
-                <CalendarGrid year={calMonth.year} month={calMonth.month} tasksByDay={tasksByDay}
-                  onTaskClick={t => !l.sold && updateTaskStatus(t.id, t.status === "done" ? "pending" : "done")} />
-              )}
-              <button onClick={() => { if (window.confirm("Delete this listing?")) deleteListing(l.id); }} style={{ marginTop: 16, background: "none", border: "none", color: "#999", cursor: "pointer", fontSize: 12, padding: 0 }}>Delete listing</button>
-            </>; })()}
-          );
-        })()}
-
-        {/* LISTINGS DASHBOARD */}
         {tab === "listings" && !activeId && (
           <>
             {(() => {
               const today = new Date();
               const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 7);
+              const todayStr = today.toISOString().split("T")[0];
+              const weekEndStr = weekEnd.toISOString().split("T")[0];
               const due = tasks.filter(t => {
                 if (t.status !== "pending") return false;
                 const l = listings.find(l => l.id === t.listing_id);
                 if (!l || l.sold) return false;
-                const d = new Date(t.due_date + "T00:00:00");
-                return d >= today && d <= weekEnd;
+                return t.due_date >= todayStr && t.due_date <= weekEndStr;
               }).sort((a, b) => a.due_date.localeCompare(b.due_date));
-              const todayStr = today.toISOString().split("T")[0];
-              const weekEndStr = weekEnd.toISOString().split("T")[0];
               const dueGeneral = generalTasks.filter(t => {
                 if (t.done) return false;
                 return t.due_date >= todayStr && t.due_date <= weekEndStr;
@@ -592,27 +613,21 @@ export default function App() {
               };
               return (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-                  {/* Luxury column */}
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                       <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#534AB7" }} />
                       <span style={{ fontSize: 12, fontWeight: 500, color: "#534AB7", textTransform: "uppercase", letterSpacing: "0.06em" }}>Luxury · {luxury.length}</span>
                     </div>
                     {luxury.length === 0 && <div style={{ fontSize: 13, color: "#999", padding: "1rem 0" }}>No luxury listings.</div>}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {luxury.map(l => <ListingCard key={l.id} l={l} />)}
-                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{luxury.map(l => <ListingCard key={l.id} l={l} />)}</div>
                   </div>
-                  {/* Regular column */}
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                       <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#2C5F2E" }} />
                       <span style={{ fontSize: 12, fontWeight: 500, color: "#2C5F2E", textTransform: "uppercase", letterSpacing: "0.06em" }}>Regular · {regular.length}</span>
                     </div>
                     {regular.length === 0 && <div style={{ fontSize: 13, color: "#999", padding: "1rem 0" }}>No regular listings.</div>}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {regular.map(l => <ListingCard key={l.id} l={l} />)}
-                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{regular.map(l => <ListingCard key={l.id} l={l} />)}</div>
                   </div>
                 </div>
               );
@@ -620,7 +635,6 @@ export default function App() {
           </>
         )}
 
-        {/* ALL TASKS */}
         {tab === "tasks" && (
           <div style={{ background: "#fff", border: "1px solid #eee", borderRadius: 14, overflow: "hidden" }}>
             {tasks.length === 0 && <div style={{ padding: "3rem", textAlign: "center", color: "#999", fontSize: 13 }}>No tasks yet.</div>}
@@ -645,7 +659,6 @@ export default function App() {
           </div>
         )}
 
-        {/* GENERAL TASKS */}
         {tab === "general" && (
           <div>
             <div style={{ background: "#fff", border: "1px solid #eee", borderRadius: 14, padding: "18px 20px", marginBottom: 20 }}>
@@ -724,7 +737,6 @@ export default function App() {
           </div>
         )}
 
-        {/* WEEKLY */}
         {tab === "weekly" && (
           <div style={{ display: "grid", gap: 10 }}>
             {WEEKLY.map(w => (
@@ -740,7 +752,6 @@ export default function App() {
         )}
       </div>
 
-      {/* ADD LISTING MODAL */}
       {showAddModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 16, padding: 28, width: "100%", maxWidth: 480, boxSizing: "border-box", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
