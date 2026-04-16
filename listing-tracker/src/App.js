@@ -141,6 +141,55 @@ function CalendarGrid({ year, month, tasksByDay, onTaskClick }) {
   );
 }
 
+function PhaseSection({ ph, pi, phaseTasks, l, updateTaskStatus, removeCustomTask, addCustomTask }) {
+  const [showDone, setShowDone] = useState(false);
+  const pc = PHASE_COLORS[pi];
+  const pending = phaseTasks.filter(t => t.status !== "done" && t.status !== "skipped");
+  const done = phaseTasks.filter(t => t.status === "done");
+  return (
+    <div style={{ marginBottom: 12, border: `1px solid ${pc.border}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 16px", background: pc.bg }}>
+        <span style={{ fontSize: 12, fontWeight: 500, color: pc.text }}>{ph}</span>
+        <span style={{ fontSize: 12, color: pc.text, opacity: 0.8 }}>{done.length}/{phaseTasks.length} done</span>
+      </div>
+      {pending.map(t => (
+        <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid #f0f0f0", background: "transparent", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+            <span style={{ fontSize: 13, color: "#111" }}>{t.name}</span>
+            <span style={{ fontSize: 11, color: "#999" }}>{fmtDate(t.due_date)}</span>
+            {t.custom && <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 999, background: "#f0f0f0", color: "#666" }}>custom</span>}
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+            {!l.sold && <button onClick={() => updateTaskStatus(t.id, "skipped")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #ddd", background: "transparent", color: "#666", cursor: "pointer" }}>Skip</button>}
+            {!l.sold && <button onClick={() => updateTaskStatus(t.id, "done")} style={{ fontSize: 12, padding: "5px 14px", borderRadius: 6, border: "1.5px solid #ddd", background: "transparent", color: "#111", cursor: "pointer" }}>Mark done</button>}
+            {t.custom && !l.sold && <button onClick={() => removeCustomTask(t.id)} style={{ background: "none", border: "none", color: "#999", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>×</button>}
+          </div>
+        </div>
+      ))}
+      {pending.length === 0 && done.length > 0 && (
+        <div style={{ padding: "10px 16px", fontSize: 13, color: "#1D6B43", background: "#F0FAF5" }}>✓ All tasks complete!</div>
+      )}
+      {done.length > 0 && (
+        <div>
+          <button onClick={() => setShowDone(s => !s)} style={{ width: "100%", padding: "8px 16px", background: "none", border: "none", borderTop: "1px solid #f0f0f0", cursor: "pointer", fontSize: 12, color: "#999", textAlign: "left" }}>
+            {showDone ? "▾" : "▸"} {done.length} completed task{done.length > 1 ? "s" : ""}
+          </button>
+          {showDone && done.map(t => (
+            <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderTop: "1px solid #f0f0f0", background: "#F0FAF5", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+                <span style={{ fontSize: 13, color: "#1D6B43", textDecoration: "line-through" }}>{t.name}</span>
+                <span style={{ fontSize: 11, color: "#999" }}>{fmtDate(t.due_date)}</span>
+              </div>
+              <button onClick={() => updateTaskStatus(t.id, "pending")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #1D9E75", background: "#1D9E75", color: "#fff", cursor: "pointer" }}>✓ Done</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {!l.sold && <div style={{ padding: "8px 16px", borderTop: "1px solid #f0f0f0" }}><AddTaskRow onAdd={(name, due) => addCustomTask(l.id, pi, name, due)} /></div>}
+    </div>
+  );
+}
+
 export default function App() {
   const [listings, setListings] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -279,11 +328,10 @@ export default function App() {
   const pct = id => totalTasks(id) ? Math.round((doneTasks(id) / totalTasks(id)) * 100) : 0;
 
   if (!loaded) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#666", fontSize: 14 }}>Loading...</div>;
-  if (error) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "red", fontSize: 13, padding: 20 }}>Error connecting to database: {error}</div>;
+  if (error) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "red", fontSize: 13, padding: 20 }}>Error: {error}</div>;
 
   return (
     <div style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", minHeight: "100vh", background: "#f5f5f5" }}>
-      {/* Nav */}
       <div style={{ background: "#2C5F2E", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ padding: "12px 0", marginRight: 16 }}>
@@ -381,53 +429,7 @@ export default function App() {
               {propertyView === "list" && PHASES.map((ph, pi) => {
                 const phaseTasks = lTasks.filter(t => t.phase === pi);
                 if (!phaseTasks.length) return null;
-                const pending = phaseTasks.filter(t => t.status !== "done" && t.status !== "skipped");
-                const done = phaseTasks.filter(t => t.status === "done");
-                const skipped = phaseTasks.filter(t => t.status === "skipped");
-                const pc = PHASE_COLORS[pi];
-                const [showDone, setShowDone] = useState(false);
-                return (
-                  <div key={pi} style={{ marginBottom: 12, border: `1px solid ${pc.border}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 16px", background: pc.bg }}>
-                      <span style={{ fontSize: 12, fontWeight: 500, color: pc.text }}>{ph}</span>
-                      <span style={{ fontSize: 12, color: pc.text, opacity: 0.8 }}>{done.length}/{phaseTasks.length} done</span>
-                    </div>
-                    {pending.map(t => (
-                      <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid #f0f0f0", background: "transparent", gap: 8 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
-                          <span style={{ fontSize: 13, color: "#111" }}>{t.name}</span>
-                          <span style={{ fontSize: 11, color: "#999" }}>{fmtDate(t.due_date)}</span>
-                          {t.custom && <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 999, background: "#f0f0f0", color: "#666" }}>custom</span>}
-                        </div>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                          {!l.sold && <button onClick={() => updateTaskStatus(t.id, "skipped")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #ddd", background: "transparent", color: "#666", cursor: "pointer" }}>Skip</button>}
-                          {!l.sold && <button onClick={() => updateTaskStatus(t.id, "done")} style={{ fontSize: 12, padding: "5px 14px", borderRadius: 6, border: "1.5px solid #ddd", background: "transparent", color: "#111", cursor: "pointer" }}>Mark done</button>}
-                          {t.custom && !l.sold && <button onClick={() => removeCustomTask(t.id)} style={{ background: "none", border: "none", color: "#999", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>×</button>}
-                        </div>
-                      </div>
-                    ))}
-                    {pending.length === 0 && done.length > 0 && (
-                      <div style={{ padding: "10px 16px", fontSize: 13, color: "#1D6B43", background: "#F0FAF5" }}>✓ All tasks complete!</div>
-                    )}
-                    {done.length > 0 && (
-                      <div>
-                        <button onClick={() => setShowDone(s => !s)} style={{ width: "100%", padding: "8px 16px", background: "none", border: "none", borderTop: "1px solid #f0f0f0", cursor: "pointer", fontSize: 12, color: "#999", textAlign: "left" }}>
-                          {showDone ? "▾" : "▸"} {done.length} completed task{done.length > 1 ? "s" : ""}
-                        </button>
-                        {showDone && done.map(t => (
-                          <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderTop: "1px solid #f0f0f0", background: "#F0FAF5", gap: 8 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
-                              <span style={{ fontSize: 13, color: "#1D6B43", textDecoration: "line-through" }}>{t.name}</span>
-                              <span style={{ fontSize: 11, color: "#999" }}>{fmtDate(t.due_date)}</span>
-                            </div>
-                            <button onClick={() => updateTaskStatus(t.id, "pending")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #1D9E75", background: "#1D9E75", color: "#fff", cursor: "pointer" }}>✓ Done</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {!l.sold && <div style={{ padding: "8px 16px", borderTop: "1px solid #f0f0f0" }}><AddTaskRow onAdd={(name, due) => addCustomTask(l.id, pi, name, due)} /></div>}
-                  </div>
-                );
+                return <PhaseSection key={pi} ph={ph} pi={pi} phaseTasks={phaseTasks} l={l} updateTaskStatus={updateTaskStatus} removeCustomTask={removeCustomTask} addCustomTask={addCustomTask} />;
               })}
 
               {propertyView === "calendar" && (
