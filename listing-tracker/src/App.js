@@ -395,8 +395,31 @@ export default function App() {
           });
           return (
             <div>
+              {(() => { const [editListing, setEditListing] = useState(false); const [editForm, setEditForm] = useState({ address: l.address, price: l.price, list_date: l.list_date, link: l.link || "" });
+              const saveListingEdit = async () => { try { await db(`listings?id=eq.${l.id}`, { method: "PATCH", body: JSON.stringify({ address: editForm.address, price: parsePrice(String(editForm.price)), list_date: editForm.list_date, link: editForm.link, luxury: parsePrice(String(editForm.price)) >= 1000000 }), prefer: "return=minimal" }); setListings(p => p.map(x => x.id === l.id ? { ...x, ...editForm, price: parsePrice(String(editForm.price)), luxury: parsePrice(String(editForm.price)) >= 1000000 } : x)); setEditListing(false); } catch(e) { console.error(e); } };
+              return <>
               <button onClick={() => setActiveId(null)} style={{ background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: 13, marginBottom: 20, padding: 0 }}>← All listings</button>
               <div style={{ background: "#fff", border: "1px solid #eee", borderRadius: 16, padding: "20px 24px", marginBottom: 20 }}>
+                {editListing ? (
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 14, color: "#111" }}>Edit listing</div>
+                    {[["Address","address","e.g. 1520 Quartz Crescent"],["Price (CAD)","price","e.g. 1,250,000"],["MLS link","link","https://..."]].map(([label, key, ph]) => (
+                      <div key={key} style={{ marginBottom: 12 }}>
+                        <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 4 }}>{label}</label>
+                        <input value={editForm[key]} onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))} placeholder={ph} style={{ width: "100%", boxSizing: "border-box" }} />
+                      </div>
+                    ))}
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 4 }}>List date</label>
+                      <input type="date" value={editForm.list_date} onChange={e => setEditForm(p => ({ ...p, list_date: e.target.value }))} style={{ width: "100%", boxSizing: "border-box" }} />
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={saveListingEdit} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#2C5F2E", color: "#fff", fontWeight: 500, fontSize: 13, cursor: "pointer" }}>Save</button>
+                      <button onClick={() => setEditListing(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #ddd", background: "transparent", fontSize: 13, cursor: "pointer", color: "#666" }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -409,8 +432,11 @@ export default function App() {
                       {l.link && <> · <a href={l.link} style={{ color: "#2C5F2E" }}>MLS link ↗</a></>}
                     </div>
                   </div>
-                  {!l.sold && <button onClick={() => { if (window.confirm(`Mark ${l.address} as sold?`)) markSold(l.id); }} style={{ padding: "7px 16px", borderRadius: 8, border: "1.5px solid #A32D2D", background: "#FFF5F5", color: "#A32D2D", cursor: "pointer", fontSize: 12, fontWeight: 500 }}>Mark sold</button>}
-                </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {!l.sold && <button onClick={() => setEditListing(true)} style={{ padding: "7px 16px", borderRadius: 8, border: "1px solid #ddd", background: "transparent", color: "#666", cursor: "pointer", fontSize: 12 }}>✎ Edit</button>}
+                    {!l.sold && <button onClick={() => { if (window.confirm(`Mark ${l.address} as sold?`)) markSold(l.id); }} style={{ padding: "7px 16px", borderRadius: 8, border: "1.5px solid #A32D2D", background: "#FFF5F5", color: "#A32D2D", cursor: "pointer", fontSize: 12, fontWeight: 500 }}>Mark sold</button>}
+                  </div>
+                </div></>)}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
                   {[["List price", fmtPrice(l.price)], ["Days on market", `Day ${days}`], ["Current phase", `Month ${curPhase + 1} of 6`], ["Progress", `${done} / ${total}`]].map(([label, val]) => (
                     <div key={label} style={{ background: "#f5f5f5", borderRadius: 8, padding: "10px 12px" }}>
@@ -462,7 +488,7 @@ export default function App() {
                   onTaskClick={t => !l.sold && updateTaskStatus(t.id, t.status === "done" ? "pending" : "done")} />
               )}
               <button onClick={() => { if (window.confirm("Delete this listing?")) deleteListing(l.id); }} style={{ marginTop: 16, background: "none", border: "none", color: "#999", cursor: "pointer", fontSize: 12, padding: 0 }}>Delete listing</button>
-            </div>
+            </>; })()}
           );
         })()}
 
