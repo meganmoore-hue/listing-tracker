@@ -283,6 +283,7 @@ export default function App() {
 
   return (
     <div style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", minHeight: "100vh", background: "#f5f5f5" }}>
+      {/* Nav */}
       <div style={{ background: "#2C5F2E", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ padding: "12px 0", marginRight: 16 }}>
@@ -301,6 +302,7 @@ export default function App() {
 
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "28px 20px" }}>
 
+        {/* PROPERTY DETAIL */}
         {tab === "listings" && activeId && activeListing && (() => {
           const l = activeListing;
           const lTasks = listingTasks(l.id);
@@ -379,28 +381,51 @@ export default function App() {
               {propertyView === "list" && PHASES.map((ph, pi) => {
                 const phaseTasks = lTasks.filter(t => t.phase === pi);
                 if (!phaseTasks.length) return null;
+                const pending = phaseTasks.filter(t => t.status !== "done" && t.status !== "skipped");
+                const done = phaseTasks.filter(t => t.status === "done");
+                const skipped = phaseTasks.filter(t => t.status === "skipped");
                 const pc = PHASE_COLORS[pi];
+                const [showDone, setShowDone] = useState(false);
                 return (
                   <div key={pi} style={{ marginBottom: 12, border: `1px solid ${pc.border}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 16px", background: pc.bg }}>
                       <span style={{ fontSize: 12, fontWeight: 500, color: pc.text }}>{ph}</span>
-                      <span style={{ fontSize: 12, color: pc.text, opacity: 0.8 }}>{phaseTasks.filter(t => t.status === "done").length}/{phaseTasks.length}</span>
+                      <span style={{ fontSize: 12, color: pc.text, opacity: 0.8 }}>{done.length}/{phaseTasks.length} done</span>
                     </div>
-                    {phaseTasks.map(t => (
-                      <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid #f0f0f0", background: t.status === "done" ? "#F0FAF5" : "transparent", gap: 8 }}>
+                    {pending.map(t => (
+                      <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid #f0f0f0", background: "transparent", gap: 8 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
-                          <span style={{ fontSize: 13, color: t.status === "done" ? "#1D6B43" : "#111", textDecoration: t.status === "done" ? "line-through" : "none" }}>{t.name}</span>
+                          <span style={{ fontSize: 13, color: "#111" }}>{t.name}</span>
                           <span style={{ fontSize: 11, color: "#999" }}>{fmtDate(t.due_date)}</span>
                           {t.custom && <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 999, background: "#f0f0f0", color: "#666" }}>custom</span>}
                         </div>
                         <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                          {!l.sold && t.status !== "done" && <button onClick={() => updateTaskStatus(t.id, "skipped")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #ddd", background: "transparent", color: "#666", cursor: "pointer" }}>Skip</button>}
-                          {!l.sold && <button onClick={() => updateTaskStatus(t.id, t.status === "done" ? "pending" : "done")} style={{ fontSize: 12, padding: "5px 14px", borderRadius: 6, border: `1.5px solid ${t.status === "done" ? "#1D9E75" : "#ddd"}`, background: t.status === "done" ? "#1D9E75" : "transparent", color: t.status === "done" ? "#fff" : "#111", cursor: "pointer", fontWeight: t.status === "done" ? 500 : 400 }}>{t.status === "done" ? "✓ Done" : "Mark done"}</button>}
+                          {!l.sold && <button onClick={() => updateTaskStatus(t.id, "skipped")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #ddd", background: "transparent", color: "#666", cursor: "pointer" }}>Skip</button>}
+                          {!l.sold && <button onClick={() => updateTaskStatus(t.id, "done")} style={{ fontSize: 12, padding: "5px 14px", borderRadius: 6, border: "1.5px solid #ddd", background: "transparent", color: "#111", cursor: "pointer" }}>Mark done</button>}
                           {t.custom && !l.sold && <button onClick={() => removeCustomTask(t.id)} style={{ background: "none", border: "none", color: "#999", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>×</button>}
                         </div>
                       </div>
                     ))}
-                    {!l.sold && <div style={{ padding: "8px 16px" }}><AddTaskRow onAdd={(name, due) => addCustomTask(l.id, pi, name, due)} /></div>}
+                    {pending.length === 0 && done.length > 0 && (
+                      <div style={{ padding: "10px 16px", fontSize: 13, color: "#1D6B43", background: "#F0FAF5" }}>✓ All tasks complete!</div>
+                    )}
+                    {done.length > 0 && (
+                      <div>
+                        <button onClick={() => setShowDone(s => !s)} style={{ width: "100%", padding: "8px 16px", background: "none", border: "none", borderTop: "1px solid #f0f0f0", cursor: "pointer", fontSize: 12, color: "#999", textAlign: "left" }}>
+                          {showDone ? "▾" : "▸"} {done.length} completed task{done.length > 1 ? "s" : ""}
+                        </button>
+                        {showDone && done.map(t => (
+                          <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderTop: "1px solid #f0f0f0", background: "#F0FAF5", gap: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+                              <span style={{ fontSize: 13, color: "#1D6B43", textDecoration: "line-through" }}>{t.name}</span>
+                              <span style={{ fontSize: 11, color: "#999" }}>{fmtDate(t.due_date)}</span>
+                            </div>
+                            <button onClick={() => updateTaskStatus(t.id, "pending")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 6, border: "1px solid #1D9E75", background: "#1D9E75", color: "#fff", cursor: "pointer" }}>✓ Done</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {!l.sold && <div style={{ padding: "8px 16px", borderTop: "1px solid #f0f0f0" }}><AddTaskRow onAdd={(name, due) => addCustomTask(l.id, pi, name, due)} /></div>}
                   </div>
                 );
               })}
@@ -414,6 +439,7 @@ export default function App() {
           );
         })()}
 
+        {/* LISTINGS DASHBOARD */}
         {tab === "listings" && !activeId && (
           <>
             {(() => {
@@ -499,6 +525,7 @@ export default function App() {
           </>
         )}
 
+        {/* ALL TASKS */}
         {tab === "tasks" && (
           <div style={{ background: "#fff", border: "1px solid #eee", borderRadius: 14, overflow: "hidden" }}>
             {tasks.length === 0 && <div style={{ padding: "3rem", textAlign: "center", color: "#999", fontSize: 13 }}>No tasks yet.</div>}
@@ -523,6 +550,7 @@ export default function App() {
           </div>
         )}
 
+        {/* GENERAL TASKS */}
         {tab === "general" && (
           <div>
             <div style={{ background: "#fff", border: "1px solid #eee", borderRadius: 14, padding: "18px 20px", marginBottom: 20 }}>
@@ -601,6 +629,7 @@ export default function App() {
           </div>
         )}
 
+        {/* WEEKLY */}
         {tab === "weekly" && (
           <div style={{ display: "grid", gap: 10 }}>
             {WEEKLY.map(w => (
@@ -616,6 +645,7 @@ export default function App() {
         )}
       </div>
 
+      {/* ADD LISTING MODAL */}
       {showAddModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
           <div style={{ background: "#fff", borderRadius: 16, padding: 28, width: "100%", maxWidth: 480, boxSizing: "border-box", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
