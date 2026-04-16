@@ -454,10 +454,11 @@ export default function App() {
                 const d = new Date(t.due_date + "T00:00:00");
                 return d >= today && d <= weekEnd;
               }).sort((a, b) => a.due_date.localeCompare(b.due_date));
+              const todayStr = today.toISOString().split("T")[0];
+              const weekEndStr = weekEnd.toISOString().split("T")[0];
               const dueGeneral = generalTasks.filter(t => {
                 if (t.done) return false;
-                const d = new Date(t.due_date + "T00:00:00");
-                return d >= today && d <= weekEnd;
+                return t.due_date >= todayStr && t.due_date <= weekEndStr;
               }).sort((a, b) => a.due_date.localeCompare(b.due_date));
               if (!due.length && !dueGeneral.length) return null;
               return (
