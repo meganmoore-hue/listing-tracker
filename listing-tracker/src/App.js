@@ -505,20 +505,20 @@ export default function App() {
             </div>
 
             {shown.length === 0 && <div style={{ textAlign: "center", padding: "3rem", color: "#999", fontSize: 14 }}>{listingTab === "active" ? "No active listings." : "No sold listings yet."}</div>}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
-              {shown.map(l => {
+            {shown.length > 0 && (() => {
+              const luxury = shown.filter(l => l.luxury);
+              const regular = shown.filter(l => !l.luxury);
+              const ListingCard = ({ l }) => {
                 const days = daysOn(l.list_date);
                 const p = pct(l.id);
                 const curPhase = Math.min(5, Math.floor(days / 30));
                 const pc = PHASE_COLORS[curPhase];
+                const accent = l.luxury ? "#534AB7" : "#2C5F2E";
                 return (
-                  <div key={l.id} onClick={() => setActiveId(l.id)} style={{ background: "#fff", border: "1px solid #eee", borderRadius: 14, padding: 16, cursor: "pointer", transition: "border-color 0.15s" }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = "#2C5F2E"}
+                  <div onClick={() => setActiveId(l.id)} style={{ background: "#fff", border: "1px solid #eee", borderRadius: 14, padding: 16, cursor: "pointer", transition: "border-color 0.15s" }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = accent}
                     onMouseLeave={e => e.currentTarget.style.borderColor = "#eee"}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3, flex: 1, marginRight: 8, color: "#111" }}>{l.address}</div>
-                      <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 999, background: l.luxury ? "#EEEDFE" : "#EBF3EB", color: l.luxury ? "#534AB7" : "#2C5F2E", fontWeight: 500, flexShrink: 0 }}>{l.luxury ? "Luxury" : "Regular"}</span>
-                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3, color: "#111", marginBottom: 6 }}>{l.address}</div>
                     <div style={{ fontSize: 12, color: "#666", marginBottom: 10 }}>{fmtPrice(l.price)} · Day {days}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                       <div style={{ width: 8, height: 8, borderRadius: "50%", background: pc.dot, flexShrink: 0 }} />
@@ -526,7 +526,7 @@ export default function App() {
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                       <div style={{ flex: 1, height: 4, borderRadius: 999, background: "#eee", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${p}%`, background: "#2C5F2E", borderRadius: 999 }} />
+                        <div style={{ height: "100%", width: `${p}%`, background: accent, borderRadius: 999 }} />
                       </div>
                       <span style={{ fontSize: 11, color: "#666" }}>{doneTasks(l.id)}/{totalTasks(l.id)}</span>
                     </div>
@@ -538,8 +538,34 @@ export default function App() {
                     )}
                   </div>
                 );
-              })}
-            </div>
+              };
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                  {/* Luxury column */}
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#534AB7" }} />
+                      <span style={{ fontSize: 12, fontWeight: 500, color: "#534AB7", textTransform: "uppercase", letterSpacing: "0.06em" }}>Luxury · {luxury.length}</span>
+                    </div>
+                    {luxury.length === 0 && <div style={{ fontSize: 13, color: "#999", padding: "1rem 0" }}>No luxury listings.</div>}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {luxury.map(l => <ListingCard key={l.id} l={l} />)}
+                    </div>
+                  </div>
+                  {/* Regular column */}
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#2C5F2E" }} />
+                      <span style={{ fontSize: 12, fontWeight: 500, color: "#2C5F2E", textTransform: "uppercase", letterSpacing: "0.06em" }}>Regular · {regular.length}</span>
+                    </div>
+                    {regular.length === 0 && <div style={{ fontSize: 13, color: "#999", padding: "1rem 0" }}>No regular listings.</div>}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {regular.map(l => <ListingCard key={l.id} l={l} />)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </>
         )}
 
